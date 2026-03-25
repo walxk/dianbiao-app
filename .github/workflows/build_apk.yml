@@ -1,1 +1,68 @@
+name: Build Kivy APK
 
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch: # 允许手动点击按钮运行
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Buildozer & Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
+          pip install --upgrade buildozer cython
+
+      - name: Generate Minimal buildozer.spec
+        run: |
+          # 自动检测主文件名，如果没有 main.py 则寻找唯一的 .py 文件
+          MAIN_FILE=$(find . -maxdepth 1 -name "*.py" ! -name "setup.py" | head -n 1 | xargs basename)
+          if [ -z "$MAIN_FILE" ]; then
+            echo "Error: No python file found!"
+            exit 1
+          fi
+          echo "Found main file: $MAIN_FILE"
+
+          # 生成极简配置文件
+          cat > buildozer.spec << EOF
+[app]
+title = DianBiao App
+package.name = dianbiao
+package.domain = org.walxk
+source.dir = .
+source.files = $MAIN_FILE
+requirements = python3,kivy==2.3.0,requests,openpyxl,pillow
+version = 1.0.0
+orientation = portrait
+android.permissions = INTERNET,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE
+android.api = 31
+android.minapi = 21
+android.ndk = 25b
+android.accept_sdk_license = True
+[buildozer]
+log_level = 2
+warn_on_root = 1
+EOF
+          echo "Generated buildozer.spec for $MAIN_FILE"
+
+      - name: Build APK
+        run: |
+          # 关键：使用 --verbose 查看详细日志，遇到错误不停止以便排查
+          buildozer android debug
+          
+      - name: Upload APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: my-app-apk
+          path: bin/*.apk

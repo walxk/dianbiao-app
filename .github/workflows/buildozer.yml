@@ -1,0 +1,55 @@
+name: Build Kivy Android APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            git zip unzip openjdk-17-jdk \
+            autoconf libtool pkg-config \
+            zlib1g-dev libncurses5-dev libncursesw5-dev \
+            libtinfo5 cmake libffi-dev libssl-dev \
+            libgl1-mesa-dev libgstreamer-plugins-base1.0-dev \
+            gstreamer1.0-plugins-good
+
+      - name: Install Buildozer and Cython
+        run: |
+          pip install --upgrade pip
+          pip install buildozer cython
+
+      - name: Initialize Buildozer Spec (if missing)
+        run: |
+          if [ ! -f buildozer.spec ]; then
+            echo "buildozer.spec not found. Creating default..."
+            buildozer init
+          else
+            echo "buildozer.spec found. Proceeding with existing config."
+          fi
+
+      - name: Build APK
+        run: |
+          buildozer android debug
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: my-android-app
+          path: bin/*.apk
+          retention-days: 5
